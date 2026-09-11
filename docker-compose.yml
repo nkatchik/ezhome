@@ -45,7 +45,7 @@ services:
     logging: *log_min
 
   zigbee2mqtt:
-    image: koenkk/zigbee2mqtt:2.10.1
+    image: koenkk/zigbee2mqtt:2.14.1
     restart: unless-stopped
     depends_on: [mosquitto]
     networks: [zigbee2mqtt_private]
