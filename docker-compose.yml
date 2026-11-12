@@ -12,7 +12,11 @@ services:
     restart: unless-stopped
     depends_on: [mosquitto]
     network_mode: host
+    security_opt:
+      # Allow Homebridge to register services with host Avahi over D-Bus.
+      - apparmor:unconfined
     environment:
+      # Use host Avahi; do not start another Avahi or D-Bus daemon.
       - "ENABLE_AVAHI=0"
       - "HB_Z2M_BASE_TOPIC=zigbee2mqtt"
       - "HB_Z2M_MQTT_URL=mqtt://127.0.0.1:1883"
@@ -24,6 +28,20 @@ services:
       - /tmp
     volumes:
       - "${HOME}/data/homebridge:/homebridge:rw"
+      # Mount sockets only: image startup chowns/cleans their parent directories.
+      # Recreate this container if the host D-Bus socket is replaced.
+      - type: bind
+        source: /run/dbus/system_bus_socket
+        target: /run/dbus/system_bus_socket
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /run/avahi-daemon/socket
+        target: /run/avahi-daemon/socket
+        read_only: true
+        bind:
+          create_host_path: false
     logging: *log_min
 
   mosquitto:

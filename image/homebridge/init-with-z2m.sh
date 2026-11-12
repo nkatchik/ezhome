@@ -7,6 +7,14 @@ HB_Z2M_MQTT_PASS="${HB_Z2M_MQTT_PASS:-}"
 
 CONFIG_PATH="${HB_PREFIX}/config.json"
 
+# Require the host advertiser before changing config or installing plugins.
+# Otherwise HAP-NodeJS can fall back to a container-local mDNS responder.
+if ! dbus-send --system --print-reply --reply-timeout=5000 \
+  --dest=org.freedesktop.Avahi / org.freedesktop.Avahi.Server.GetVersionString >/dev/null; then
+  echo "[entrypoint] Host Avahi is unavailable over D-Bus; check the Compose socket mounts and host service." >&2
+  exit 1
+fi
+
 # Ensure config file exists with minimal structure (don’t touch if it already exists)
 if [ ! -f "${CONFIG_PATH}" ]; then
   cat > "${CONFIG_PATH}" <<'JSON'
@@ -39,6 +47,9 @@ jq \
   --arg user   "${HB_Z2M_MQTT_USER}" \
   --arg pass   "${HB_Z2M_MQTT_PASS}" \
   --arg clear  "${HB_Z2M_CLEAR_CREDS}" '
+  # Child bridges inherit this advertiser. Preserve bridge identity and pairing.
+  .bridge.advertiser = "avahi" |
+
   # Ensure platforms array exists
   (.platforms //= []) |
 
@@ -72,6 +83,10 @@ jq \
         }
       ]
     end
+  ) |
+  # The UI is reached via the host name/proxy, without its own advertiser.
+  .platforms |= map(
+    if .platform == "config" then .enableMdnsAdvertise = false else . end
   )
 ' "${CONFIG_PATH}" > "${tmp}" && mv "${tmp}" "${CONFIG_PATH}"
 
